@@ -2,54 +2,19 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os/user"
 	"path"
-	"strings"
-	"bytes"
-	"log"
 )
 
-const(	
+const (
 	octgnGameId string = "0f38e453-26df-4c04-9d67-6d43de939c77"
 	markerSetId string = "21bf9e05-fb23-4b1d-b89a-398f671f5999"
 )
 
-type CardInfo struct{
-	ID string
-	Set string
-	Name string
-}
-type CustomURL func(info CardInfo) string
-type AssetSource struct{
-	Quality uint
-	ComposeURL CustomURL
-}
-var assetList []AssetSource = []AssetSource{
-	{
-		Quality: 125400,
-		ComposeURL: func(info CardInfo) string{
-			startIdx := len(info.ID)-5
-			buffer := bytes.NewBufferString("http://netrunnerdb.com/web/bundles/netrunnerdbcards/images/cards/en/")
-			buffer.WriteString(info.ID[startIdx:])
-			buffer.WriteString(".png")
-			return buffer.String()
-		},
-	},
-	{
-		Quality: 58870,
-		ComposeURL: func(info CardInfo) string{			
-			buffer := bytes.NewBufferString("http://www.cardgamedb.com/forums/uploads/an/")
-			buffer.WriteString("ffg_")
-			buffer.WriteString(strings.Replace(strings.ToLower(info.Name)," ","-",-1))
-			buffer.WriteString("-")
-			buffer.WriteString(strings.Replace(strings.ToLower(info.Set)," ","-",-1))
-			buffer.WriteString(".png")
-			return buffer.String()
-		},
-	},
-}
-	
-func getPaths() (installPath , setPath , imgPath string){
+//Get important OCTGN Netrunner directory paths
+func getPaths() (installPath, setPath, imgPath string) {
 	curUser, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
@@ -60,27 +25,116 @@ func getPaths() (installPath , setPath , imgPath string){
 	return
 }
 
-func main() {
-	
-	installPath, setPath, imgPath := getPaths()
 
-	#foreach dir in setPath:
-		#format set xml path
-		#get setInfo from xml
-		#if curSet not netMarkerSet:
-			#download set
-	
-	
-	
-	
-	tmp := CardInfo{
-		ID:"78923478295",
-		Set:"Set Name Here",
-		Name:"Card Name",
-		}
-	fmt.Println(assetList[1].ComposeURL(tmp))
+type Task struct{
+	Target string
+	Card CardInfo
 }
 
+
+func main() {
+	installPath, setPath, imgPath := getPaths()
+	_ = installPath
+	_ = setPath
+	_ = imgPath
+	
+	//Foreach set
+	setDirs, err := ioutil.ReadDir(setPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	workChan := make(chan Task)
+	for _, curSet := range setDirs {
+		if curSet.Name() == markerSetId{
+			continue
+		}		
+		setColl := parseSetXML(fmt.Sprintf("%s/%s/set.xml", setPath, curSet.Name()))
+		_ = setColl
+		
+		for _,curCard:= range setColl{
+			targetFile := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID,".png")
+			//Check card exists, set quality
+			
+			
+			workChan <- Task{ targetFile, curCard}
+		}		
+	}
+	
+	/*
+	
+def downloadSet(setName, setID, cardSet chan cardWork):
+    # Setup dl directory
+    targetDir = r"{}\{}\Cards".format(imagePath, setID)
+    if not os.path.isdir(targetDir):
+        os.makedirs(targetDir)
+
+    for curCard in cardSet:
+        curID = curCard.attrib["id"]
+        curName = curCard.attrib["name"]
+        targetFile = r"{}\{}.png".format(targetDir, curID)
+
+        # First attempt from netrunnercards.info
+        print("Downloading {} - {}".format(setName, curName))
+        targetURL = "{}{}.png".format(priAssetURL, curID[-5:])
+        if not downloadImage(targetURL, targetFile):
+            # Second attempt from cardgamedb
+            print("\tAttempting alternative download")
+            targetURL = "{}ffg_{}-{}.png".format(secAssetURL, curName.lower().replace(' ', '-'), setName.lower().replace(' ', '-'))
+            downloadImage(targetURL, targetFile)
+
+	*/
+	
+	//foreach dir in setPath:
+	//format set xml path
+	//get setInfo from xml
+	//if curSet not netMarkerSet:
+	//download set
+}
+
+
+
+
+/* 
+
+Channel of CardInfo & targetPath
+
+
+
+FUNCTION targetPath use sources
+	Check if targetPath exists
+	if exists, get resolution
+	while resolution of next source > image try:
+		download and save image
+		if success break
+	
+
+
+
+
+
+
+
+
+
+/*
+func main() {
+		v := new(set)
+		err := xml.Unmarshal([]byte(xmlString ),&v)
+		if err!=nil{
+			log.Fatal(err)
+		}
+		fmt.Println(v.Name)
+		for _,cur := range v.Cards.Cards{
+			fmt.Println(cur)
+		}
+	fmt.Println(getPaths())
+}
+*/
+/*
+def getCardSet(targetSetXML):
+    tree = xml.etree.ElementTree.parse(targetSetXML)
+    return (tree.getroot().attrib['name'], tree.findall(".//card"))
+*/
 
 
 
