@@ -6,10 +6,10 @@ import (
 )
 
 type CardInfo struct {
-	ID   string
-	Set  string
-	SetID string
-	Name string
+	ID      string
+	Set     string
+	SetID   string
+	Name    string
 	Quality uint
 }
 
@@ -18,13 +18,13 @@ type AssetSource struct {
 	Quality    uint
 	ComposeURL CustomURL
 }
-
-var assetList []AssetSource = []AssetSource{
+type AssetList []AssetSource
+var assets AssetList = AssetList{
 	{
 		Quality: 125400,
 		ComposeURL: func(info CardInfo) string {
 			startIdx := len(info.ID) - 5
-			buffer := bytes.NewBufferString("http://netrunnerdb.com/web/bundles/netrunnerdbcards/images/cards/en/")
+			buffer := bytes.NewBufferString("http://netrunnerdb.coma/web/bundles/netrunnerdbcards/images/cards/en/")
 			buffer.WriteString(info.ID[startIdx:])
 			buffer.WriteString(".png")
 			return buffer.String()
@@ -42,4 +42,14 @@ var assetList []AssetSource = []AssetSource{
 			return buffer.String()
 		},
 	},
+}
+
+func (a AssetList) Len() int {
+	return len(a)
+}
+func (a AssetList) Less(i, j int) bool {
+	return a[i].Quality > a[j].Quality
+}
+func (a AssetList) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
 }
