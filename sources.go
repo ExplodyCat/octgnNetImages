@@ -24,7 +24,7 @@ var assets AssetList = AssetList{
 		Quality: 125400,
 		ComposeURL: func(info CardInfo) string {
 			startIdx := len(info.ID) - 5
-			buffer := bytes.NewBufferString("http://netrunnerdb.coma/web/bundles/netrunnerdbcards/images/cards/en/")
+			buffer := bytes.NewBufferString("http://netrunnerdb.com/web/bundles/netrunnerdbcards/images/cards/en/")
 			buffer.WriteString(info.ID[startIdx:])
 			buffer.WriteString(".png")
 			return buffer.String()

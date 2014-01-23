@@ -12,16 +12,108 @@ import (
 	"os/user"
 	"path"
 	"sync"
-	"sort"
+	//"sort"
+	"strings"
+	"encoding/xml"
 )
+
+type CardInfo struct {
+	ID      string
+	Set     string
+	SetID   string
+	Name    string
+	Quality uint
+}
+
+type AssetSource struct {
+	Quality    uint
+	ComposeURL func(info CardInfo) string
+}
+type AssetList []AssetSource
+var sources AssetList = AssetList{
+	{
+		Quality: 125400,
+		ComposeURL: func(info CardInfo) string {
+			startIdx := len(info.ID) - 5
+			buffer := bytes.NewBufferString("http://netrunnerdb.com/web/bundles/netrunnerdbcards/images/cards/en/")
+			buffer.WriteString(info.ID[startIdx:])
+			buffer.WriteString(".png")
+			return buffer.String()
+		},
+	},
+	{
+		Quality: 58870,
+		ComposeURL: func(info CardInfo) string {
+			buffer := bytes.NewBufferString("http://www.cardgamedb.com/forums/uploads/an/")
+			buffer.WriteString("ffg_")
+			buffer.WriteString(strings.Replace(strings.ToLower(info.Name), " ", "-", -1))
+			buffer.WriteString("-")
+			buffer.WriteString(strings.Replace(strings.ToLower(info.Set), " ", "-", -1))
+			buffer.WriteString(".png")
+			return buffer.String()
+		},
+	},
+}
+var pngSig []byte = []byte{'\x89', '\x50', '\x4E', '\x47', '\x0D', '\x0A', '\x1A', '\x0A'}
 
 const (
 	octgnGameId string = "0f38e453-26df-4c04-9d67-6d43de939c77"
 	markerSetId string = "21bf9e05-fb23-4b1d-b89a-398f671f5999"
+	consumeThreads int = 1
+	chanSize int = 60
 )
+var wGroup sync.WaitGroup
+var wChan = make(chan Task, chanSize)
+
+type NetSet struct {
+	XMLName xml.Name `xml:"set"`
+	Name    string   `xml:"name,attr"`
+	ID      string   `xml:"id,attr"`
+	Cards   NetCards `xml:"cards"`
+}
+type NetCards struct {
+	Cards []NetCard `xml:"card"`
+}
+type NetCard struct {
+	ID   string `xml:"id,attr"`
+	Name string `xml:"name,attr"`
+}
+
+type Task struct {
+	Target string
+	Card   CardInfo
+}
+
+//Parse a set xml file and return slice of cards
+func parseSetXML(xmlPath string) (results []CardInfo, err error) {
+	//read data from xml file
+	data, err := ioutil.ReadFile(xmlPath)
+	if err != nil {
+		return results, err
+	}
+
+	//parse that xml data
+	v := new(NetSet)
+	err = xml.Unmarshal(data, &v)
+	if err != nil {
+		return results,err
+	}
+	
+	//parse out all the cards
+	for _, cur := range v.Cards.Cards {
+		newItem := CardInfo{
+			ID:    cur.ID,
+			Name:  cur.Name,
+			Set:   v.Name,
+			SetID: v.ID,
+		}
+		results = append(results, newItem)
+	}
+	return
+}
 
 //Get important OCTGN Netrunner directory paths
-func getPaths() (setPath, imgPath string) {
+func getPaths() (setPath string, imgPath string) {
 	curUser, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
@@ -32,229 +124,124 @@ func getPaths() (setPath, imgPath string) {
 	return
 }
 
-type Task struct {
-	Target string
-	Card   CardInfo
-}
-
+//Download images for work in queue
 func consumer() {
-	defer waitingRoom.Done()
-	for curTask := range workChan {
-		_ = curTask
-		for _,curAsset := range assets{
-			//fmt.Println("Loop: ",i)
+	defer wGroup.Done()
+	for curTask := range wChan {
+		for _,curAsset := range sources{
+			//Cycle through sources so long as resolution quality of source is better than
+			//current card's imgQuality.  No card == quality 0.
+			
 			if curTask.Card.Quality >= curAsset.Quality{
+				//No more good sources, abort current task
 				break
 			}
+			
 			url := curAsset.ComposeURL(curTask.Card)
-			_=url
 			fmt.Printf("Attempting download: %s - %s\n",curTask.Card.Set,curTask.Card.Name)
-			if doDownload(url,curTask.Target){
+			if err := doDownload(url,curTask.Target); err == nil{
+				//Download was a success, can abort current task
 				break
 			} else{
-				fmt.Printf("Failed Get: %s - %s\n",curTask.Card.Set,curTask.Card.Name)
+				//Download failed, keep looping for next source
+				fmt.Printf("Failed Get: %s - %s\n\t%s\n",curTask.Card.Set, curTask.Card.Name,err)
 			}
 		}
 	}
 }
 
-func doDownload(url string, target string) bool{
-	out, err := os.Create(target)
-	defer out.Close()
-	if err !=nil{
-	fmt.Println(err)
-	return false
-	}
+//Download contents of url to target path
+func doDownload(url string, target string) (err error){
+	//Get the url contents
 	resp, err := http.Get(url)
 	defer resp.Body.Close()
 	if err !=nil{
-	fmt.Println(err)
-	return false
+		return err
 	}
+	//Open file handle
+	target = "TMP"//DEBUG
+	out, err := os.Create(target)
+	defer out.Close()
+	if err !=nil{
+		return err
+	}
+	fmt.Println(resp.Body)
+	//Copy response into file
 	_, err = io.Copy(out, resp.Body)
 	if err !=nil{
-	fmt.Println(err)
-	return false
+		return err
 	}
-	return true
-
-return false
+	return
 }
 
-var threads int = 1
-var chanSize int = 60
-var waitingRoom sync.WaitGroup
-var workChan = make(chan Task, chanSize)
-
-func main() {
+//Loads wChan with list of Netrunner cards to consider downloading
+func producer(){
 	setPath, imgPath := getPaths()
-	sort.Sort(assets)
-	//return
-	for i := 0; i < threads; i++ {
-		waitingRoom.Add(1)
-		go consumer()
-	}
-
-	//PRODUCER----------------------
+	
+	//get list of set directories
 	setDirs, err := ioutil.ReadDir(setPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, curSet := range setDirs {
+	
+	for _, curSet := range setDirs{
+	
+		//Skip over the marker set
 		if curSet.Name() == markerSetId {
 			continue
 		}
-		setColl := parseSetXML(fmt.Sprintf("%s/%s/set.xml", setPath, curSet.Name()))
-		_ = setColl
-
-		for _, curCard := range setColl {
-			//fmt.Println("Checking card quality")
-			targetFile := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID+".png")
-			//Check card exists, set quality
-			fHandle, err := os.Open(targetFile)
-			if err != nil {
-				fmt.Println("Set card quality")
-				curCard.Quality = 0
-			} else {
-				head := make([]byte, 24)
-				_, _ = fHandle.Read(head)
-				fHandle.Close()
-				
-
-				var resolution struct {
-					Width  uint32
-					Height uint32
-				}
-				binary.Read(bytes.NewBuffer(head[16:24]), binary.BigEndian, &resolution)
-				curCard.Quality = uint(resolution.Width * resolution.Height)
-				if curCard.Quality<24{
-					fmt.Println("FAILED TO PARSE")
-				}
+		
+		//Get the collection of cards from the set
+		setFile := fmt.Sprintf("%s/%s/set.xml", setPath, curSet.Name())
+		setColl, err := parseSetXML(setFile)
+		if err != nil{
+			fmt.Printf("Error loading set file: %s\n\t%s\n",setFile, err)
+			continue
+		}
+		
+		for _, curCard:= range setColl{
+		
+			//Get card quality
+			curPath := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID+ ".png")
+			curCard.Quality = getPNGQuality(curPath)			
+			//if best quality of source > card Quality, queue for downloads
+			if curCard.Quality < sources[0].Quality{			
+				wChan <- Task{curPath, curCard}
 			}
-			workChan <- Task{targetFile, curCard}
 		}
-
 	}
-	close(workChan)
-	waitingRoom.Wait()
 }
 
-/*
+func unpackUInt(bSlice []byte) (result uint32){
+	//TODO: Endianness check??
+	binary.Read(bytes.NewBuffer(bSlice), binary.BigEndian, &result)
+	return
+}
 
-def downloadSet(setName, setID, cardSet chan cardWork):
-    # Setup dl directory
-    targetDir = r"{}\{}\Cards".format(imagePath, setID)
-    if not os.path.isdir(targetDir):
-        os.makedirs(targetDir)
+func getPNGQuality(curPath string) uint{
+	fHandle, err := os.Open(curPath)	
+	defer fHandle.Close()
+	if err != nil {
+		return 0
+	}
+	
+	
+	head := make([]byte, 24)
+	count, err := fHandle.Read(head)	
+	if err !=nil || count != len(head) || !bytes.Equal(head[0:8],pngSig){		
+		return 0
+	}
+	
+	quality := uint(unpackUInt(head[16:20]) * unpackUInt(head[20:24]))
+	return quality	
+}
 
-    for curCard in cardSet:
-        curID = curCard.attrib["id"]
-        curName = curCard.attrib["name"]
-        targetFile = r"{}\{}.png".format(targetDir, curID)
-
-        # First attempt from netrunnercards.info
-        print("Downloading {} - {}".format(setName, curName))
-        targetURL = "{}{}.png".format(priAssetURL, curID[-5:])
-        if not downloadImage(targetURL, targetFile):
-            # Second attempt from cardgamedb
-            print("\tAttempting alternative download")
-            targetURL = "{}ffg_{}-{}.png".format(secAssetURL, curName.lower().replace(' ', '-'), setName.lower().replace(' ', '-'))
-            downloadImage(targetURL, targetFile)
-
-*/
-
-//foreach dir in setPath:
-//format set xml path
-//get setInfo from xml
-//if curSet not netMarkerSet:
-//download set
-
-/*
-
-Channel of CardInfo & targetPath
-
-
-
-FUNCTION targetPath use sources
-	Check if targetPath exists
-	if exists, get resolution
-	while resolution of next source > image try:
-		download and save image
-		if success break
-
-
-
-
-
-
-
-
-
-
-/*
 func main() {
-		v := new(set)
-		err := xml.Unmarshal([]byte(xmlString ),&v)
-		if err!=nil{
-			log.Fatal(err)
-		}
-		fmt.Println(v.Name)
-		for _,cur := range v.Cards.Cards{
-			fmt.Println(cur)
-		}
-	fmt.Println(getPaths())
+	for i := 0; i < consumeThreads; i++ {
+		wGroup.Add(1)
+		go consumer()
+	}
+	producer()	
+	close(wChan)
+	wGroup.Wait()
 }
-*/
-/*
-def getCardSet(targetSetXML):
-    tree = xml.etree.ElementTree.parse(targetSetXML)
-    return (tree.getroot().attrib['name'], tree.findall(".//card"))
-*/
-
-/*
-
-
-def getCardSet(targetSetXML):
-    tree = xml.etree.ElementTree.parse(targetSetXML)
-    return (tree.getroot().attrib['name'], tree.findall(".//card"))
-
-
-def downloadImage(targetURL, outFilePath):
-    response = None
-    try:
-        response = urllib2.urlopen(targetURL)
-        with open(outFilePath, "wb") as outFile:
-            outFile.write(response.read())
-    except Exception as err:
-        print("\tError in getting file from {}:\n\t\t{}".format(targetURL, err))
-        return False
-    finally:
-        try:
-            response.close()
-        except:
-            pass
-    return True
-
-
-def downloadSet(setName, setID, cardSet):
-    # Setup dl directory
-    targetDir = r"{}\{}\Cards".format(imagePath, setID)
-    if not os.path.isdir(targetDir):
-        os.makedirs(targetDir)
-
-    for curCard in cardSet:
-        curID = curCard.attrib["id"]
-        curName = curCard.attrib["name"]
-        targetFile = r"{}\{}.png".format(targetDir, curID)
-
-        # First attempt from netrunnercards.info
-        print("Downloading {} - {}".format(setName, curName))
-        targetURL = "{}{}.png".format(priAssetURL, curID[-5:])
-        if not downloadImage(targetURL, targetFile):
-            # Second attempt from cardgamedb
-            print("\tAttempting alternative download")
-            targetURL = "{}ffg_{}-{}.png".format(secAssetURL, curName.lower().replace(' ', '-'), setName.lower().replace(' ', '-'))
-            downloadImage(targetURL, targetFile)
-
-
-*/
