@@ -15,6 +15,7 @@ import (
 	//"sort"
 	"encoding/xml"
 	"strings"
+	"flag"
 )
 
 type CardInfo struct {
@@ -85,6 +86,8 @@ type Task struct {
 	Target string
 	Card   CardInfo
 }
+
+var forceFlag bool = false	//cmd line flag to force dl of files regardless of quality
 
 //Parse a set xml file and return slice of cards
 func parseSetXML(xmlPath string) (results []CardInfo, err error) {
@@ -204,10 +207,16 @@ func producer() {
 			continue
 		}
 
-		for _, curCard := range setColl {
-
-			//Get card quality
+		for _, curCard := range setColl {		
 			curPath := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID+".png")
+			
+			//If we're forcing downloads, just add task and continue
+			if forceFlag{
+				wChan <- Task{curPath, curCard}
+				continue
+			}
+			
+			//Get card quality
 			curCard.Quality = getPNGQuality(curPath)
 			//if best quality of source > card Quality, queue for downloads
 			if curCard.Quality < sources[0].Quality {
@@ -241,6 +250,8 @@ func getPNGQuality(curPath string) uint {
 }
 
 func main() {
+	flag.BoolVar(&forceFlag, "Force", false, "Force redownload of all images")
+	flag.Parse()
 	for i := 0; i < consumeThreads; i++ {
 		wGroup.Add(1)
 		go consumer()
