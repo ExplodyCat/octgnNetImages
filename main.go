@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/xml"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,11 +13,8 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"sync"
-	//"sort"
-	"encoding/xml"
 	"strings"
-	"flag"
+	"sync"
 )
 
 type CardInfo struct {
@@ -61,7 +60,7 @@ var pngSig []byte = []byte{'\x89', '\x50', '\x4E', '\x47', '\x0D', '\x0A', '\x1A
 const (
 	octgnGameId    string = "0f38e453-26df-4c04-9d67-6d43de939c77"
 	markerSetId    string = "21bf9e05-fb23-4b1d-b89a-398f671f5999"
-	consumeThreads int    = 1
+	consumeThreads int    = 4
 	chanSize       int    = 60
 )
 
@@ -87,7 +86,7 @@ type Task struct {
 	Card   CardInfo
 }
 
-var forceFlag bool = false	//cmd line flag to force dl of files regardless of quality
+var forceFlag bool = false //cmd line flag to force dl of files regardless of quality
 
 //Parse a set xml file and return slice of cards
 func parseSetXML(xmlPath string) (results []CardInfo, err error) {
@@ -207,15 +206,15 @@ func producer() {
 			continue
 		}
 
-		for _, curCard := range setColl {		
+		for _, curCard := range setColl {
 			curPath := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID+".png")
-			
+
 			//If we're forcing downloads, just add task and continue
-			if forceFlag{
+			if forceFlag {
 				wChan <- Task{curPath, curCard}
 				continue
 			}
-			
+
 			//Get card quality
 			curCard.Quality = getPNGQuality(curPath)
 			//if best quality of source > card Quality, queue for downloads
