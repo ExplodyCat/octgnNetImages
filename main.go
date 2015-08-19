@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"strings"
 	"sync"
 )
 
@@ -36,30 +35,33 @@ var sources AssetList = AssetList{
 		Quality: 125400,
 		ComposeURL: func(info CardInfo) string {
 			startIdx := len(info.ID) - 5
-			buffer := bytes.NewBufferString("http://netrunnerdb.com/web/bundles/netrunnerdbcards/images/cards/en/")
+			buffer := bytes.NewBufferString("http://netrunnerdb.com/bundles/netrunnerdbcards/images/cards/en/")
 			buffer.WriteString(info.ID[startIdx:])
 			buffer.WriteString(".png")
 			return buffer.String()
 		},
 	},
-	{
-		Quality: 58870,
-		ComposeURL: func(info CardInfo) string {
-			buffer := bytes.NewBufferString("http://www.cardgamedb.com/forums/uploads/an/")
-			buffer.WriteString("ffg_")
-			buffer.WriteString(strings.Replace(strings.ToLower(info.Name), " ", "-", -1))
-			buffer.WriteString("-")
-			buffer.WriteString(strings.Replace(strings.ToLower(info.Set), " ", "-", -1))
-			buffer.WriteString(".png")
-			return buffer.String()
+	/*
+		{
+			Quality: 58870,
+			ComposeURL: func(info CardInfo) string {
+				buffer := bytes.NewBufferString("http://www.cardgamedb.com/forums/uploads/an/")
+				buffer.WriteString("ffg_")
+				buffer.WriteString(strings.Replace(strings.ToLower(info.Name), " ", "-", -1))
+				buffer.WriteString("-")
+				buffer.WriteString(strings.Replace(strings.ToLower(info.Set), " ", "-", -1))
+				buffer.WriteString(".png")
+				return buffer.String()
+			},
 		},
-	},
+	*/
 }
 var pngSig []byte = []byte{'\x89', '\x50', '\x4E', '\x47', '\x0D', '\x0A', '\x1A', '\x0A'}
 
 const (
 	octgnGameId    string = "0f38e453-26df-4c04-9d67-6d43de939c77"
 	markerSetId    string = "21bf9e05-fb23-4b1d-b89a-398f671f5999"
+	dbzeroPromo    string = "bc0f047c-01b1-427f-a439-d451eda00000"
 	consumeThreads int    = 4
 	chanSize       int    = 60
 )
@@ -208,6 +210,11 @@ func producer() {
 
 		for _, curCard := range setColl {
 			curPath := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID+".png")
+
+			//Skip the db0 promo card
+			if curCard.ID == dbzeroPromo {
+				continue
+			}
 
 			//If we're forcing downloads, just add task and continue
 			if forceFlag {
