@@ -26,6 +26,7 @@ var (
 	wGroup        sync.WaitGroup
 	wChan         = make(chan Task, chanSize)
 	forceDownload = flag.Bool("f", false, "Force download of all images")
+	forceCWD      = flag.Bool("c", false, "Treat current working dir as root OCTGN. Good for nonstandard OCTGN locations.")
 )
 
 //TODO: provide a flag to specify download for only a specific game
@@ -56,12 +57,11 @@ func searchList(target string, list []string) bool {
 //Loads wChan with list of cards to consider downloading
 func producer(gInfo Game) {
 	setPath, imgPath := getPaths(gInfo)
-
 	//If the game isn't installed, return
 	if _, err := os.Stat(setPath); os.IsNotExist(err) {
+		fmt.Printf("Game not found: %s\n\t%s\n\n", gInfo.Name, setPath)
 		return
 	}
-
 	//get list of set directories
 	setDirs, err := ioutil.ReadDir(setPath)
 	if err != nil {

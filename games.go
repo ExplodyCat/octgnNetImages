@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"os/user"
 	"path"
 )
@@ -51,7 +52,12 @@ func getPaths(gInfo Game) (setPath string, imgPath string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	installPath := path.Join(curUser.HomeDir, "Documents", "OCTGN")
+	if *forceCWD {
+		installPath, _ = os.Getwd()
+	}
+
 	setPath = path.Join(installPath, "GameDatabase", gInfo.ID, "Sets")
 	imgPath = path.Join(installPath, "ImageDatabase", gInfo.ID, "Sets")
 	return
