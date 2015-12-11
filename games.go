@@ -48,11 +48,10 @@ var thrones = Game{
 	},
 }
 
-// Will not download Core Set (higher res images available at http://octgngames.com/wh40kc/ already)
 var wh40kconquest = Game{
 	Name:        "Warhammer40k Conquest",
 	ID:          "af04f855-58c4-4db3-a191-45fe33381679",
-	IgnoreSets:  []string{"cdba7854-4c22-48f3-b388-74ca361b05d9", "35c6df08-5a89-47bb-b8f3-624bcd8d9d43"},
+	IgnoreSets:  []string{"cdba7854-4c22-48f3-b388-74ca361b05d9"},
 	IgnoreCards: []string{},
 	ComposeURL: func(info CardInfo) string {
 		return fmt.Sprintf("http://s3.amazonaws.com/LCG/40kconquest/med_WHK%s_%s.jpg", wh40kSubset(info), info.Number)
@@ -67,9 +66,9 @@ func wh40kSubset(info CardInfo) (subset string) {
 	switch {
 	default:
 		return "01"
-	case info.Set == "01-Core Set":
+	case info.SetID == "35c6df08-5a89-47bb-b8f3-624bcd8d9d43": // Core Set
 		return "01"
-	case info.Set == "02- Warlord Cycle":
+	case info.SetID == "9a38f053-1b57-46f5-8578-39e4d1bb45d9": // Warlord Cycle
 		if cardNum < 23 {
 			return "02"
 		} else if cardNum < 45 {
@@ -82,7 +81,7 @@ func wh40kSubset(info CardInfo) (subset string) {
 			return "06"
 		}
 		return "07"
-	case info.Set == "03-The Great Devourer":
+	case info.SetID == "8a92e0bc-0c4d-484d-9177-42cd9ebba406": // The Great Devouerer
 		return "08"
 	}
 
