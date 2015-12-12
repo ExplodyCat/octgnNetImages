@@ -6,6 +6,7 @@ Features:
   Netrunner
   AGoT 2.0
   Warhammer 40k Conquest
+  Doomtown Reloaded
 
 NOTE: "Official" OCTGN image packs will usually contain higher quality scans. If an official pack is
 available, consider installing it first, and run octgnNetImages after. Any pre-existing images will

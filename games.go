@@ -22,6 +22,7 @@ var gameList = []Game{
 	netrunner,
 	thrones,
 	wh40kconquest,
+	doomtown,
 }
 
 var netrunner = Game{
@@ -56,6 +57,45 @@ var wh40kconquest = Game{
 	ComposeURL: func(info CardInfo) string {
 		return fmt.Sprintf("http://s3.amazonaws.com/LCG/40kconquest/med_WHK%s_%s.jpg", wh40kSubset(info), info.Number)
 	},
+}
+
+var doomtown = Game{
+	Name:        "Doomtown Reloaded",
+	ID:          "b440d120-025a-4fbe-9f8d-3873acacb37b",
+	IgnoreSets:  []string{"49f27cd8-8398-4165-b7e7-f93497f0c54b"},
+	IgnoreCards: []string{},
+	ComposeURL: func(info CardInfo) string {
+		return fmt.Sprintf("http://dtdb.co/web/bundles/dtdbcards/images/cards/en/%s%03s.jpg", doomtownSet(info), info.Number)
+	},
+}
+
+func doomtownSet(info CardInfo) (setNumber string) {
+	switch {
+	default:
+		return "unknown"
+	case info.Set == "Core Set":
+		return "01"
+	case info.Set == "New Town, New Rules":
+		return "02"
+	case info.Set == "Double Dealin'":
+		return "03"
+	case info.Set == "Election Day Slaughter":
+		return "04"
+	case info.Set == "Faith and Fear":
+		return "05"
+	case info.Set == "Frontier Justice":
+		return "06"
+	case info.Set == "No Turning Back":
+		return "07"
+	case info.Set == "Nightmare at Noon":
+		return "08"
+	case info.Set == "Immovable Object, Unstoppable Force":
+		return "09"
+	case info.Set == "The Light Shineth":
+		return "10"
+	case info.Set == "Dirty Deeds":
+		return "11"
+	}
 }
 
 // The Warlord Cycle is broken into subsets in the image database, while the GameDatabase definition just has them
