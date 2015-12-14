@@ -58,14 +58,14 @@ var wh40kconquest = Game{
 	},
 }
 
-// The Warlord Cycle is broken into subsets in the image database, while the GameDatabase definition just has them
-// all defined as a single set. Break them down by card number.
+// Some cycles are  broken into subsets in the image database, while the GameDatabase definition
+// just has them all defined as a single set. Break them down by card number.
 func wh40kSubset(info CardInfo) (subset string) {
 	cardNum, _ := strconv.Atoi(info.Number)
 
 	switch {
 	default:
-		return "01"
+		return "unknown"
 	case info.SetID == "35c6df08-5a89-47bb-b8f3-624bcd8d9d43": // Core Set
 		return "01"
 	case info.SetID == "9a38f053-1b57-46f5-8578-39e4d1bb45d9": // Warlord Cycle
@@ -83,7 +83,13 @@ func wh40kSubset(info CardInfo) (subset string) {
 		return "07"
 	case info.SetID == "8a92e0bc-0c4d-484d-9177-42cd9ebba406": // The Great Devouerer
 		return "08"
+	case info.SetID == "af362a3a-4f60-4050-801e-0a7bb8dd58bf": // Planetfall Cycle
+		if cardNum < 25 {
+			return "09"
+		}
 	}
+
+	return "unknown"
 
 }
 
