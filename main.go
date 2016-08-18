@@ -26,20 +26,29 @@ var (
 	wGroup        sync.WaitGroup
 	wChan         = make(chan Task, chanSize)
 	forceDownload = flag.Bool("f", false, "Force download of all images")
+	specifyGame   = flag.String("g", "all", "Only download a specific game. '-g=list' for choices")
 	forceCWD      = flag.Bool("c", false, "Treat current working dir as root OCTGN. Good for nonstandard OCTGN locations.")
 )
 
-//TODO: provide a flag to specify download for only a specific game
-
 func main() {
 	flag.Parse()
+	if *specifyGame == "" || *specifyGame == "list" {
+		fmt.Println("Available options:\n")
+		fmt.Printf("%-12s :DEFAULT- Attempt download of each game installed\n", "all")
+		for _, gInfo := range gameList {
+			fmt.Printf("%-12s :%s\n", gInfo.CLI, gInfo.Name)
+		}
+		return
+	}
 
 	for i := 0; i < consumeThreads; i++ {
 		wGroup.Add(1)
 		go consumer()
 	}
 	for _, gInfo := range gameList {
-		producer(gInfo)
+		if *specifyGame == "all" || *specifyGame == gInfo.CLI {
+			producer(gInfo)
+		}
 	}
 	close(wChan)
 	wGroup.Wait()
@@ -92,6 +101,9 @@ func producer(gInfo Game) {
 
 			dst := path.Join(imgPath, curCard.SetID, "Cards", curCard.ID+".png")
 			src := gInfo.ComposeURL(curCard)
+			if len(src) == 0 {
+				continue
+			}
 
 			//Only download files that don't exist
 			if _, err := os.Stat(dst); os.IsNotExist(err) || *forceDownload {
